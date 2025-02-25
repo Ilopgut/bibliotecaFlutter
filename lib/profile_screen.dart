@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -8,7 +6,6 @@ import 'package:pdf/widgets.dart' as pw; // Widgets del PDF con prefijo pw
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:open_file/open_file.dart';
-import 'package:flutter/services.dart' show rootBundle; // Para cargar assets
 import 'catalog_screen.dart'; // Asumiendo que este archivo existe
 
 class ProfilePage extends StatefulWidget {
@@ -20,7 +17,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   List<Map<String, dynamic>> _prestamos = [];
-  List<String> _rutasImagenes = []; // Array para almacenar las rutas de las imágenes
 
   @override
   void initState() {
@@ -33,18 +29,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final String? prestamosJson = prefs.getString('prestamos');
     if (prestamosJson != null) {
       setState(() {
-        _prestamos = List<Map<String, dynamic>>.from(json.decode(prestamosJson));
-        _rutasImagenes = _prestamos
-            .map((prestamo) => prestamo['portada'] as String?)
-            .where((ruta) => ruta != null)
-            .cast<String>()
-            .toList();
-        print('Rutas de imágenes cargadas: $_rutasImagenes'); // Depuración
+        _prestamos =
+            List<Map<String, dynamic>>.from(json.decode(prestamosJson));
       });
     } else {
       setState(() {
         _prestamos = [];
-        _rutasImagenes = [];
       });
     }
   }
@@ -54,7 +44,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final libroCancelado = _prestamos[index];
     setState(() {
       _prestamos.removeAt(index);
-      _rutasImagenes.removeAt(index); // Mantener sincronizado el array de rutas
     });
     await prefs.setString('prestamos', json.encode(_prestamos));
     BookManager.updateBookState(libroCancelado['titulo'], 'Disponible');
@@ -76,20 +65,6 @@ class _ProfilePageState extends State<ProfilePage> {
       prestamosPorLector[lector]!.add(prestamo);
     }
 
-    // Cargar todas las imágenes desde _rutasImagenes
-    final Map<String, Uint8List> imagenesCache = {};
-    for (var imagenPath in _rutasImagenes) {
-      if (!imagenesCache.containsKey(imagenPath)) {
-        try {
-          final imagenBytes = await rootBundle.load(imagenPath);
-          imagenesCache[imagenPath] = imagenBytes.buffer.asUint8List();
-          print('Imagen cargada: $imagenPath'); // Depuración
-        } catch (e) {
-          print('Error cargando imagen $imagenPath: $e'); // Depuración
-        }
-      }
-    }
-
     // Crear las páginas del PDF
     pdf.addPage(
       pw.MultiPage(
@@ -107,43 +82,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   pw.Text(
                     'Lector: $lector',
-                    style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 18, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
-                  // Lista de préstamos con imagen y título
+                  // Lista de préstamos con solo el título
                   ...prestamos.map((prestamo) {
-                    // Usar _rutasImagenes para encontrar la imagen correspondiente
-                    final index = _prestamos.indexOf(prestamo); // Obtener el índice del préstamo
-                    final imagenPath = index >= 0 && index < _rutasImagenes.length
-                        ? _rutasImagenes[index]
-                        : null; // Usar el array _rutasImagenes
-                    pw.Widget imagenWidget;
-                    if (imagenPath != null && imagenesCache.containsKey(imagenPath)) {
-                      imagenWidget = pw.Image(
-                        pw.MemoryImage(imagenesCache[imagenPath]!),
-                        width: 50,
-                        height: 70,
-                      );
-                    } else {
-                      imagenWidget = pw.Container(
-                        width: 50,
-                        height: 70,
-                        color: PdfColors.grey300,
-                        child: pw.Center(child: pw.Text('Sin imagen')),
-                      );
-                      print('No se encontró imagen para: $imagenPath (índice: $index)');
-                    }
-
-                    return pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        imagenWidget,
-                        pw.SizedBox(width: 10),
-                        pw.Text(
-                          prestamo['titulo'],
-                          style: pw.TextStyle(fontSize: 14),
-                        ),
-                      ],
+                    return pw.Text(
+                      prestamo['titulo'],
+                      style: pw.TextStyle(fontSize: 14),
                     );
                   }).toList(),
                   pw.SizedBox(height: 20),
@@ -193,22 +140,24 @@ class _ProfilePageState extends State<ProfilePage> {
             child: _prestamos.isEmpty
                 ? const Center(child: Text('No hay libros prestados'))
                 : ListView.builder(
-              itemCount: _prestamos.length,
-              itemBuilder: (context, index) {
-                final prestamo = _prestamos[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                  child: ListTile(
-                    title: Text(prestamo['titulo']),
-                    subtitle: Text('Reservado por: ${prestamo['lector']}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.cancel, color: Colors.red),
-                      onPressed: () => _cancelarPrestamo(index),
-                    ),
+                    itemCount: _prestamos.length,
+                    itemBuilder: (context, index) {
+                      final prestamo = _prestamos[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 15),
+                        child: ListTile(
+                          title: Text(prestamo['titulo']),
+                          subtitle:
+                              Text('Reservado por: ${prestamo['lector']}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.cancel, color: Colors.red),
+                            onPressed: () => _cancelarPrestamo(index),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20.0),
